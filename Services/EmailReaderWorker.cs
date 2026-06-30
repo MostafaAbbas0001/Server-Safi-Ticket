@@ -9,7 +9,7 @@ namespace Safi_Ticket.Services
 {
     public class EmailReaderWorker : BackgroundService
     {
-        private const int FallbackPollSeconds = 300;
+        private const int DefaultPollSeconds = 300;
         private const int ReconnectDelaySeconds = 30;
         private static readonly TimeSpan IdleRefreshInterval = TimeSpan.FromMinutes(9);
 
@@ -100,14 +100,18 @@ namespace Safi_Ticket.Services
 
             if (!client.Capabilities.HasFlag(ImapCapabilities.Idle))
             {
+                var pollSeconds = _settings.PollSeconds > 0
+                    ? _settings.PollSeconds
+                    : DefaultPollSeconds;
+
                 _logger.LogWarning(
                     "IMAP server does not support IDLE. Falling back to checking unread emails every {PollSeconds} seconds.",
-                    FallbackPollSeconds
+                    pollSeconds
                 );
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(FallbackPollSeconds), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(pollSeconds), cancellationToken);
                     await ProcessUnreadEmailsAsync(folder, cancellationToken);
                 }
 

@@ -98,6 +98,54 @@ namespace Safi_Ticket.Services
                 .ToListAsync();
         }
 
+        public async Task<TicketAttachment?> GetAttachmentByIdAsync(int attachmentId)
+        {
+            return await _context
+                .TicketAttachments.AsNoTracking()
+                .FirstOrDefaultAsync(attachment => attachment.Id == attachmentId);
+        }
+
+        public string? ResolveAttachmentFilePath(TicketAttachment attachment)
+        {
+            var candidatePaths = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(attachment.FilePath))
+            {
+                candidatePaths.Add(attachment.FilePath);
+            }
+
+            var webRootPath = _environment.WebRootPath;
+            if (string.IsNullOrWhiteSpace(webRootPath))
+            {
+                webRootPath = Path.Combine(_environment.ContentRootPath, "wwwroot");
+            }
+
+            if (!string.IsNullOrWhiteSpace(attachment.Url))
+            {
+                candidatePaths.Add(
+                    Path.Combine(
+                        webRootPath,
+                        attachment.Url.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)
+                    )
+                );
+            }
+
+            if (!string.IsNullOrWhiteSpace(attachment.StoredFileName))
+            {
+                candidatePaths.Add(
+                    Path.Combine(
+                        webRootPath,
+                        "uploads",
+                        "tickets",
+                        attachment.TicketId.ToString(),
+                        attachment.StoredFileName
+                    )
+                );
+            }
+
+            return candidatePaths.FirstOrDefault(File.Exists);
+        }
+
         public async Task<TicketAttachment?> AddAttachmentAsync(int ticketId, IFormFile file)
         {
             var ticketExists = await _context.Tickets.AnyAsync(ticket =>

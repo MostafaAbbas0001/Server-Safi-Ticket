@@ -4,13 +4,15 @@ services:
     container_name: safi_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-SafiTicket}
-      POSTGRES_USER: ${POSTGRES_USER:-safi}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Server/.env}
+      POSTGRES_DB: "${POSTGRES_DB:-Safi-Ticket}"
+      POSTGRES_USER: "${POSTGRES_USER:-Najeeb}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server/.env}"
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,36 +26,45 @@ services:
     container_name: safi_server
     restart: unless-stopped
     environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
-      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
-      AllowedHosts: ${ALLOWED_HOSTS:-*}
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-SafiTicket};Username=${POSTGRES_USER:-safi};Password=${POSTGRES_PASSWORD}
-      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in Server/.env}
-      Jwt__Issuer: ${JWT_ISSUER:-SafiTicket}
-      Jwt__Audience: ${JWT_AUDIENCE:-SafiTicketUsers}
-      Jwt__ExpireMinutes: ${JWT_EXPIRE_MINUTES:-60}
-      Frontend__BaseUrl: ${FRONTEND_BASE_URL:-http://127.0.0.1:8080}
-      Frontend__AllowedOrigins: ${FRONTEND_ALLOWED_ORIGINS:-http://127.0.0.1:8080,http://localhost:8080}
-      SeedAdmin__Name: ${SEED_ADMIN_NAME:-Safi Admin}
-      SeedAdmin__Email: ${SEED_ADMIN_EMAIL:?Set SEED_ADMIN_EMAIL in Server/.env}
-      SeedAdmin__Password: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in Server/.env}
-      SeedAdmin__ResetPassword: ${SEED_ADMIN_RESET_PASSWORD:-false}
-      EmailSettings__Host: ${EMAIL_HOST:-}
-      EmailSettings__Port: ${EMAIL_PORT:-993}
-      EmailSettings__Username: ${EMAIL_USERNAME:-}
-      EmailSettings__Password: ${EMAIL_PASSWORD:-}
-      EmailSettings__Mailbox: ${EMAIL_MAILBOX:-INBOX}
-      EmailSettings__PollSeconds: ${EMAIL_POLL_SECONDS:-300}
-      EmailSettings__SmtpHost: ${EMAIL_SMTP_HOST:-}
-      EmailSettings__SmtpPort: ${EMAIL_SMTP_PORT:-465}
-      EmailSettings__FromName: ${EMAIL_FROM_NAME:-Safi Helpdesk}
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Production}"
+      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-http://+:8080}"
+      AllowedHosts: "${ALLOWED_HOSTS:-*}"
+
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-Safi-Ticket};Username=${POSTGRES_USER:-Najeeb};Password=${POSTGRES_PASSWORD}"
+
+      Jwt__Key: "${JWT_KEY:?Set JWT_KEY in server/.env}"
+      Jwt__Issuer: "${JWT_ISSUER:-SafiTicket}"
+      Jwt__Audience: "${JWT_AUDIENCE:-SafiTicketUsers}"
+      Jwt__ExpireMinutes: "${JWT_EXPIRE_MINUTES:-60}"
+
+      Frontend__BaseUrl: "${FRONTEND_BASE_URL:-http://193.24.232.167}"
+      Frontend__AllowedOrigins: "${FRONTEND_ALLOWED_ORIGINS:-http://193.24.232.167}"
+
+      SeedAdmin__Name: "${SEED_ADMIN_NAME:-Alex Admin}"
+      SeedAdmin__Email: "${SEED_ADMIN_EMAIL:-admin@safi.com}"
+      SeedAdmin__Password: "${SEED_ADMIN_PASSWORD:-Admin123!}"
+      SeedAdmin__ResetPassword: "${SEED_ADMIN_RESET_PASSWORD:-false}"
+
+      EmailSettings__Host: "${EMAIL_HOST:-}"
+      EmailSettings__Port: "${EMAIL_PORT:-993}"
+      EmailSettings__Username: "${EMAIL_USERNAME:-}"
+      EmailSettings__Password: "${EMAIL_PASSWORD:-}"
+      EmailSettings__Mailbox: "${EMAIL_MAILBOX:-INBOX}"
+      EmailSettings__PollSeconds: "${EMAIL_POLL_SECONDS:-300}"
+      EmailSettings__SmtpHost: "${EMAIL_SMTP_HOST:-}"
+      EmailSettings__SmtpPort: "${EMAIL_SMTP_PORT:-465}"
+      EmailSettings__FromName: "${EMAIL_FROM_NAME:-Safi Helpdesk}"
+
     depends_on:
       postgres:
         condition: service_healthy
+
     volumes:
       - server_uploads:/app/wwwroot/uploads
+
     ports:
       - "127.0.0.1:${SERVER_PORT:-5044}:8080"
+
     networks:
       - safi_net
 
@@ -63,4 +74,4 @@ volumes:
 
 networks:
   safi_net:
-    name: safi_net
+    external: true

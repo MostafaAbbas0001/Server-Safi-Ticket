@@ -173,6 +173,35 @@ namespace Safi_Ticket.Controllers
             return Ok(attachments.Select(ToAttachmentResponse));
         }
 
+        [HttpGet("attachments/{attachmentId:int}/file")]
+        public async Task<IActionResult> DownloadAttachment(int attachmentId)
+        {
+            var attachment = await _ticketService.GetAttachmentByIdAsync(attachmentId);
+
+            if (attachment == null)
+            {
+                return NotFound($"Attachment with id {attachmentId} was not found.");
+            }
+
+            var filePath = _ticketService.ResolveAttachmentFilePath(attachment);
+
+            if (filePath == null)
+            {
+                return NotFound($"Attachment file for id {attachmentId} was not found.");
+            }
+
+            var contentType = string.IsNullOrWhiteSpace(attachment.ContentType)
+                ? "application/octet-stream"
+                : attachment.ContentType;
+
+            return PhysicalFile(
+                filePath,
+                contentType,
+                attachment.FileName,
+                enableRangeProcessing: true
+            );
+        }
+
         [HttpPost("{ticketId:int}/attachments")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> AddAttachment(int ticketId, IFormFile file)
