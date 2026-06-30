@@ -56,4 +56,4 @@ volumes:
 
 networks:
   safi_net:
-    external: true
+    name: safi_net
