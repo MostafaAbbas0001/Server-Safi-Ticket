@@ -24,13 +24,20 @@ services:
     container_name: safi_server
     restart: unless-stopped
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      AllowedHosts: ${ALLOWED_HOSTS:-*}
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-SafiTicket};Username=${POSTGRES_USER:-safi};Password=${POSTGRES_PASSWORD}
       Jwt__Key: ${JWT_KEY:?Set JWT_KEY in Server/.env}
       Jwt__Issuer: ${JWT_ISSUER:-SafiTicket}
       Jwt__Audience: ${JWT_AUDIENCE:-SafiTicketUsers}
       Jwt__ExpireMinutes: ${JWT_EXPIRE_MINUTES:-60}
+      Frontend__BaseUrl: ${FRONTEND_BASE_URL:-http://127.0.0.1:8080}
+      Frontend__AllowedOrigins: ${FRONTEND_ALLOWED_ORIGINS:-http://127.0.0.1:8080,http://localhost:8080}
+      SeedAdmin__Name: ${SEED_ADMIN_NAME:-Safi Admin}
+      SeedAdmin__Email: ${SEED_ADMIN_EMAIL:?Set SEED_ADMIN_EMAIL in Server/.env}
+      SeedAdmin__Password: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in Server/.env}
+      SeedAdmin__ResetPassword: ${SEED_ADMIN_RESET_PASSWORD:-false}
       EmailSettings__Host: ${EMAIL_HOST:-}
       EmailSettings__Port: ${EMAIL_PORT:-993}
       EmailSettings__Username: ${EMAIL_USERNAME:-}

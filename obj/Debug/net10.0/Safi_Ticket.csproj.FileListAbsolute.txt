@@ -137,3 +137,4 @@ C:\Users\Admin\Desktop\Projects\Ticket System\Server\obj\Debug\net10.0\refint\Sa
 C:\Users\Admin\Desktop\Projects\Ticket System\Server\obj\Debug\net10.0\Safi_Ticket.pdb
 C:\Users\Admin\Desktop\Projects\Ticket System\Server\obj\Debug\net10.0\Safi_Ticket.genruntimeconfig.cache
 C:\Users\Admin\Desktop\Projects\Ticket System\Server\obj\Debug\net10.0\ref\Safi_Ticket.dll
+C:\Users\Admin\Desktop\Projects\Ticket System\Server\obj\Debug\net10.0\Safi_Ticket.sourcelink.json
