@@ -1,0 +1,4 @@
+.opblock-section-request-body select.content-type,
+.responses-inner select.content-type {
+    display: none;
+}

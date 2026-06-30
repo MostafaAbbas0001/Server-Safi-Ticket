@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: safi_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-SafiTicket}
+      POSTGRES_USER: ${POSTGRES_USER:-safi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Server/.env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - safi_net
+
+  server:
+    build:
+      context: .
+    image: safi-server
+    container_name: safi_server
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-SafiTicket};Username=${POSTGRES_USER:-safi};Password=${POSTGRES_PASSWORD}
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in Server/.env}
+      Jwt__Issuer: ${JWT_ISSUER:-SafiTicket}
+      Jwt__Audience: ${JWT_AUDIENCE:-SafiTicketUsers}
+      Jwt__ExpireMinutes: ${JWT_EXPIRE_MINUTES:-60}
+      EmailSettings__Host: ${EMAIL_HOST:-}
+      EmailSettings__Port: ${EMAIL_PORT:-993}
+      EmailSettings__Username: ${EMAIL_USERNAME:-}
+      EmailSettings__Password: ${EMAIL_PASSWORD:-}
+      EmailSettings__Mailbox: ${EMAIL_MAILBOX:-INBOX}
+      EmailSettings__PollSeconds: ${EMAIL_POLL_SECONDS:-300}
+      EmailSettings__SmtpHost: ${EMAIL_SMTP_HOST:-}
+      EmailSettings__SmtpPort: ${EMAIL_SMTP_PORT:-465}
+      EmailSettings__FromName: ${EMAIL_FROM_NAME:-Safi Helpdesk}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - server_uploads:/app/wwwroot/uploads
+    ports:
+      - "127.0.0.1:${SERVER_PORT:-5044}:8080"
+    networks:
+      - safi_net
+
+volumes:
+  postgres_data:
+  server_uploads:
+
+networks:
+  safi_net:
+    external: true
