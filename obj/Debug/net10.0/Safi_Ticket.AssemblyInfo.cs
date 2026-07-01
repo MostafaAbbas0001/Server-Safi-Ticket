@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Safi_Ticket")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b07eb09268a73744d5d175dc78997a1a065dde0f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e3696ffd124a03dee3a7efa29f18791fcbf9e4d8")]
 [assembly: System.Reflection.AssemblyProductAttribute("Safi_Ticket")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Safi_Ticket")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

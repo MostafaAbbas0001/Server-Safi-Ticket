@@ -378,7 +378,7 @@ namespace Safi_Ticket.Services
                           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #deddd8;border-radius:8px;overflow:hidden;box-shadow:0 16px 42px rgba(25,25,24,0.07);">
                             <tr>
                               <td style="padding:30px 36px 24px 36px;border-bottom:1px solid #e7e5df;background:#fbfbf9;">
-                                <img src="cid:safi-ticket-logo@safi-ticket.local" alt="Safi Ticket" width="235" style="display:block;width:235px;max-width:100%;height:auto;margin:0 0 26px 0;">
+                                <img src="cid:safi-ticket-logo@safi-ticket.local" alt="Safi Ticket" width="235" style="display:block;width:235px;max-width:100%;height:auto;margin:0 auto 26px auto;">
                                 <p style="margin:0 0 9px 0;color:#706d66;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;">{{safeLabel}}</p>
                                 <h1 style="margin:0;color:#191918;font-size:28px;line-height:1.2;font-weight:700;">{{safeHeading}}</h1>
                                 <p style="margin:10px 0 0 0;color:#4b4944;font-size:16px;line-height:1.55;">{{safeTitle}}</p>
@@ -394,9 +394,8 @@ namespace Safi_Ticket.Services
                               </td>
                             </tr>
                             <tr>
-                              <td style="padding:18px 36px;background:#191918;color:#f8f8f6;font-size:12px;line-height:1.7;">
-                                <strong style="font-size:13px;">Safi Ticketing System</strong><br>
-                                IT Department Helpdesk
+                              <td align="center" style="padding:18px 36px;background:#191918;color:#f8f8f6;font-size:13px;line-height:1.7;font-weight:700;text-align:center;">
+                                IT Help Desk
                               </td>
                             </tr>
                           </table>
