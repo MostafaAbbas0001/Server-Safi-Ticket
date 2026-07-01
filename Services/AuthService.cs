@@ -87,14 +87,7 @@ namespace Safi_Ticket.Services
 
             var token = GenerateJwtToken(user);
 
-            return new AuthResponse
-            {
-                Token = token,
-                UserId = user.Id,
-                Name = user.Name,
-                Email = user.Email,
-                Role = user.Role.Name,
-            };
+            return new AuthResponse { Token = token };
         }
 
         public async Task<string> ForgotPasswordAsync(ForgotPasswordRequest request)
@@ -204,10 +197,10 @@ namespace Safi_Ticket.Services
 
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Name),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Role.Name),
+                new Claim("nameid", user.Id.ToString()),
+                new Claim("unique_name", user.Name),
+                new Claim("email", user.Email),
+                new Claim("role", user.Role.Name),
             };
 
             var token = new JwtSecurityToken(

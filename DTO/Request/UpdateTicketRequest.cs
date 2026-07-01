@@ -23,5 +23,9 @@ namespace Safi_Ticket.DTO.Request
         public bool IsUserIdSet { get; private set; }
 
         public int? PriorityId { get; set; }
+
+        public int? ActorUserId { get; set; }
+
+        public string? InternalNote { get; set; }
     }
 }

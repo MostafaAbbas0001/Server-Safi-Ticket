@@ -94,7 +94,7 @@ namespace Safi_Ticket.Services
                         "ticket-comment-added",
                         existingTicket.Id,
                         replyComment.Id,
-                        $"New email reply on TK-{existingTicket.Id:0000}",
+                        $"New email reply on TK-{existingTicket.Id}",
                         replyComment.CreatedAt
                     )
                 );
@@ -155,7 +155,7 @@ namespace Safi_Ticket.Services
                     "ticket-created",
                     ticket.Id,
                     comment.Id,
-                    $"New ticket TK-{ticket.Id:0000} received by email",
+                    $"New ticket TK-{ticket.Id} received by email",
                     ticket.CreatedAt
                 )
             );
@@ -326,18 +326,18 @@ namespace Safi_Ticket.Services
                 .Statuses.AsNoTracking()
                 .FirstOrDefaultAsync(status => status.Id == ticket.StatusId);
 
-            if (currentStatus?.Name != "Resolved" && currentStatus?.Name != "Closed")
+            if (currentStatus?.Name != "Closed")
             {
                 return;
             }
 
-            var pendingStatus = await _context
+            var initiatedStatus = await _context
                 .Statuses.AsNoTracking()
-                .FirstOrDefaultAsync(status => status.Name == "Pending");
+                .FirstOrDefaultAsync(status => status.Name == "Initiated");
 
-            if (pendingStatus != null)
+            if (initiatedStatus != null)
             {
-                ticket.StatusId = pendingStatus.Id;
+                ticket.StatusId = initiatedStatus.Id;
             }
         }
 

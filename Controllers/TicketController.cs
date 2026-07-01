@@ -17,19 +17,11 @@ namespace Safi_Ticket.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllTickets()
+        public async Task<IActionResult> GetTickets([FromQuery] TicketQueryRequest request)
         {
-            var tickets = await _ticketService.GetAllTicketsAsync();
+            var tickets = await _ticketService.SearchTicketsAsync(request);
 
             return Ok(tickets);
-        }
-
-        [HttpGet("assigned/{userId:int}")]
-        public async Task<IActionResult> GetAssignedTickets(int userId)
-        {
-            var userTickets = await _ticketService.GetAssignedTicketsAsync(userId);
-
-            return Ok(userTickets);
         }
 
         [HttpGet("{ticketId:int}")]
@@ -43,14 +35,6 @@ namespace Safi_Ticket.Controllers
             }
 
             return Ok(ticket);
-        }
-
-        [HttpGet("search")]
-        public async Task<IActionResult> SearchTickets([FromQuery] TicketQueryRequest request)
-        {
-            var tickets = await _ticketService.SearchTicketsAsync(request);
-
-            return Ok(tickets);
         }
 
         [HttpPost]
@@ -104,36 +88,20 @@ namespace Safi_Ticket.Controllers
         [HttpPut("{id:int}")]
         public async Task<IActionResult> UpdateTicket(int id, UpdateTicketRequest request)
         {
-            var result = await _ticketService.UpdateTicketAsync(id, request);
-
-            if (result == null)
-            {
-                return NotFound($"Ticket with id {id} was not found.");
-            }
-
-            return Ok(result);
-        }
-
-        [HttpPut("{ticketId:int}/user-update")]
-        public async Task<IActionResult> UserUpdateTicket(
-            int ticketId,
-            UserTicketUpdateRequest request
-        )
-        {
             try
             {
-                var result = await _ticketService.UserUpdateTicketAsync(ticketId, request);
+                var result = await _ticketService.UpdateTicketAsync(id, request);
 
                 if (result == null)
                 {
-                    return NotFound($"Ticket with id {ticketId} was not found.");
+                    return NotFound($"Ticket with id {id} was not found.");
                 }
 
                 return Ok(result);
             }
             catch (UnauthorizedAccessException)
             {
-                return Forbid();
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Forbidden." });
             }
             catch (InvalidOperationException exception)
             {
@@ -248,7 +216,7 @@ namespace Safi_Ticket.Controllers
             }
             catch (UnauthorizedAccessException)
             {
-                return Forbid();
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Forbidden." });
             }
             catch (InvalidOperationException exception)
             {

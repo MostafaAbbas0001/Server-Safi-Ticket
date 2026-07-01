@@ -1,8 +1,6 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Safi_Ticket.Data;
 using Safi_Ticket.DTO.Settings;
-using Safi_Ticket.Models;
 using Safi_Ticket.Services;
 
 LoadEnvFile();
@@ -38,10 +36,10 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 );
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<TicketService>();
+builder.Services.AddScoped<OverviewService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<EmailNotificationService>();
@@ -64,105 +62,21 @@ if (app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 
-/*
- * Disable HTTPS redirection in local development because the frontend
- * is calling the backend through http://127.0.0.1:5044.
- *
- * If this stays enabled, POST requests like /api/Auth/login may redirect
- * to HTTPS and fail in the browser.
- */
-// app.UseHttpsRedirection();
-
 app.UseCors("FrontendPolicy");
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
 
-await SeedDevelopmentAdminAsync(app);
+await ApplyDatabaseMigrationsAsync(app);
 
 app.Run();
 
-static async Task SeedDevelopmentAdminAsync(WebApplication app)
+static async Task ApplyDatabaseMigrationsAsync(WebApplication app)
 {
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var passwordHasher = new PasswordHasher<User>();
-    var seedAdmin = app.Configuration.GetSection("SeedAdmin");
 
     await context.Database.MigrateAsync();
-
-    var adminRole = await context.Roles.FirstOrDefaultAsync(role => role.Name == "Admin");
-    if (adminRole == null)
-    {
-        adminRole = new Role { Name = "Admin" };
-        context.Roles.Add(adminRole);
-    }
-
-    if (!await context.Roles.AnyAsync(role => role.Name == "User"))
-    {
-        context.Roles.Add(new Role { Name = "User" });
-    }
-
-    var requiredStatuses = new[]
-    {
-        "New",
-        "Pending",
-        "In Progress",
-        "Resolved",
-        "Closed",
-        "Canceled",
-    };
-
-    foreach (var statusName in requiredStatuses)
-    {
-        if (!await context.Statuses.AnyAsync(status => status.Name == statusName))
-        {
-            context.Statuses.Add(new Status { Name = statusName });
-        }
-    }
-
-    await context.SaveChangesAsync();
-
-    var adminName = seedAdmin["Name"]?.Trim();
-    var adminEmail = seedAdmin["Email"]?.Trim().ToLowerInvariant();
-    var adminPassword = seedAdmin["Password"];
-    var resetPassword = bool.TryParse(seedAdmin["ResetPassword"], out var shouldResetPassword)
-        && shouldResetPassword;
-
-    if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
-    {
-        app.Logger.LogWarning(
-            "Seed admin skipped because SeedAdmin:Email or SeedAdmin:Password is missing."
-        );
-        return;
-    }
-
-    var admin = await context.Users.FirstOrDefaultAsync(user => user.Email == adminEmail);
-    if (admin == null)
-    {
-        admin = new User
-        {
-            Name = string.IsNullOrWhiteSpace(adminName) ? "Safi Admin" : adminName,
-            Email = adminEmail,
-            PhoneNumber = "",
-            RoleId = adminRole.Id,
-        };
-
-        admin.HashedPassword = passwordHasher.HashPassword(admin, adminPassword);
-        context.Users.Add(admin);
-    }
-    else
-    {
-        admin.Name = string.IsNullOrWhiteSpace(adminName) ? admin.Name : adminName;
-        admin.RoleId = adminRole.Id;
-
-        if (resetPassword)
-        {
-            admin.HashedPassword = passwordHasher.HashPassword(admin, adminPassword);
-        }
-    }
-
-    await context.SaveChangesAsync();
 }
 
 static void LoadEnvFile()
@@ -241,10 +155,6 @@ static void ApplyEnvironmentConfigurationAliases()
     SetFromEnvironmentIfMissing("Frontend__BaseUrl", "FRONTEND_BASE_URL");
     SetFromEnvironmentIfMissing("Frontend__AllowedOrigins", "FRONTEND_ALLOWED_ORIGINS");
 
-    SetFromEnvironmentIfMissing("SeedAdmin__Name", "SEED_ADMIN_NAME");
-    SetFromEnvironmentIfMissing("SeedAdmin__Email", "SEED_ADMIN_EMAIL");
-    SetFromEnvironmentIfMissing("SeedAdmin__Password", "SEED_ADMIN_PASSWORD");
-    SetFromEnvironmentIfMissing("SeedAdmin__ResetPassword", "SEED_ADMIN_RESET_PASSWORD");
     SetFromEnvironmentIfMissing("AllowedHosts", "ALLOWED_HOSTS");
 
     if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")))

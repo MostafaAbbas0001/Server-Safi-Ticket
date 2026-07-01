@@ -40,11 +40,6 @@ services:
       Frontend__BaseUrl: "${FRONTEND_BASE_URL:-http://193.24.232.167}"
       Frontend__AllowedOrigins: "${FRONTEND_ALLOWED_ORIGINS:-http://193.24.232.167}"
 
-      SeedAdmin__Name: "${SEED_ADMIN_NAME:-Alex Admin}"
-      SeedAdmin__Email: "${SEED_ADMIN_EMAIL:-admin@safi.com}"
-      SeedAdmin__Password: "${SEED_ADMIN_PASSWORD:-Admin123!}"
-      SeedAdmin__ResetPassword: "${SEED_ADMIN_RESET_PASSWORD:-false}"
-
       EmailSettings__Host: "${EMAIL_HOST:-}"
       EmailSettings__Port: "${EMAIL_PORT:-993}"
       EmailSettings__Username: "${EMAIL_USERNAME:-}"
