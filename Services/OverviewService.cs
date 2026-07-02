@@ -13,10 +13,19 @@ namespace Safi_Ticket.Services
             _context = context;
         }
 
-        public async Task<TicketOverviewResponse> GetTicketOverviewAsync(string? timeFrame, int? userId)
+        public async Task<TicketOverviewResponse> GetTicketOverviewAsync(
+            DateTime? startDate,
+            DateTime? endDate,
+            int? userId
+        )
         {
-            var normalizedTimeFrame = NormalizeTimeFrame(timeFrame);
-            var startDate = GetStartDate(normalizedTimeFrame);
+            var normalizedStartDate = startDate.HasValue
+                ? DateTime.SpecifyKind(startDate.Value.Date, DateTimeKind.Utc)
+                : (DateTime?)null;
+            var normalizedEndDate = endDate.HasValue
+                ? DateTime.SpecifyKind(endDate.Value.Date, DateTimeKind.Utc)
+                : (DateTime?)null;
+            var exclusiveEndDate = normalizedEndDate?.AddDays(1);
             var ticketsQuery = _context.Tickets.AsNoTracking().Where(ticket => !ticket.IsDeleted);
 
             if (userId.HasValue)
@@ -24,9 +33,14 @@ namespace Safi_Ticket.Services
                 ticketsQuery = ticketsQuery.Where(ticket => ticket.UserId == userId.Value);
             }
 
-            if (startDate.HasValue)
+            if (normalizedStartDate.HasValue)
             {
-                ticketsQuery = ticketsQuery.Where(ticket => ticket.CreatedAt >= startDate.Value);
+                ticketsQuery = ticketsQuery.Where(ticket => ticket.CreatedAt >= normalizedStartDate.Value);
+            }
+
+            if (exclusiveEndDate.HasValue)
+            {
+                ticketsQuery = ticketsQuery.Where(ticket => ticket.CreatedAt < exclusiveEndDate.Value);
             }
 
             var statusCounts = await ticketsQuery
@@ -47,33 +61,10 @@ namespace Safi_Ticket.Services
 
             return new TicketOverviewResponse
             {
-                TimeFrame = normalizedTimeFrame,
+                StartDate = normalizedStartDate,
+                EndDate = normalizedEndDate,
                 TotalCount = statusCounts.Values.Sum(),
                 Statuses = statuses,
-            };
-        }
-
-        private static string NormalizeTimeFrame(string? timeFrame)
-        {
-            return timeFrame?.Trim().ToLowerInvariant() switch
-            {
-                "today" => "today",
-                "7d" => "7d",
-                "30d" => "30d",
-                _ => "all",
-            };
-        }
-
-        private static DateTime? GetStartDate(string timeFrame)
-        {
-            var now = DateTime.UtcNow;
-
-            return timeFrame switch
-            {
-                "today" => now.Date,
-                "7d" => now.AddDays(-7),
-                "30d" => now.AddDays(-30),
-                _ => null,
             };
         }
     }

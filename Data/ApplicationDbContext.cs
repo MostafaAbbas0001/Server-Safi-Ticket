@@ -16,8 +16,6 @@ namespace Safi_Ticket.Data
 
         public DbSet<Status> Statuses { get; set; }
 
-        public DbSet<Priority> Priorities { get; set; }
-
         public DbSet<EmailMessage> EmailMessages { get; set; }
 
         public DbSet<TicketComment> TicketComments { get; set; }
@@ -48,17 +46,9 @@ namespace Safi_Ticket.Data
                 .WithMany(status => status.Tickets)
                 .HasForeignKey(ticket => ticket.StatusId);
 
-            modelBuilder
-                .Entity<Ticket>()
-                .HasOne(ticket => ticket.Priority)
-                .WithMany(priority => priority.Tickets)
-                .HasForeignKey(ticket => ticket.PriorityId);
-
             modelBuilder.Entity<Ticket>().HasIndex(ticket => new { ticket.IsDeleted, ticket.CreatedAt });
 
             modelBuilder.Entity<Ticket>().HasIndex(ticket => new { ticket.IsDeleted, ticket.StatusId });
-
-            modelBuilder.Entity<Ticket>().HasIndex(ticket => new { ticket.IsDeleted, ticket.PriorityId });
 
             modelBuilder.Entity<Ticket>().HasIndex(ticket => new { ticket.IsDeleted, ticket.UserId });
 

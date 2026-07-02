@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Safi_Ticket.Authorization;
 using Safi_Ticket.Data;
 using Safi_Ticket.Models;
 using Safi_Ticket.Services;
@@ -10,6 +11,7 @@ namespace Safi_Ticket.Controllers
     [Route("api/[controller]")]
     [Consumes("application/json")]
     [Produces("application/json")]
+    [AllowRoles("Admin")]
     public class UserController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -38,6 +40,7 @@ namespace Safi_Ticket.Controllers
         }
 
         [HttpPost]
+        [AllowRoles("Admin")]
         public async Task<ActionResult<string>> CreateUser(CreateUserRequest request)
         {
             try

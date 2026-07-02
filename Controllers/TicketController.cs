@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Safi_Ticket.Authorization;
 using Safi_Ticket.DTO.Request;
 using Safi_Ticket.Models;
 using Safi_Ticket.Services;
@@ -7,6 +8,7 @@ namespace Safi_Ticket.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [AllowRoles("Admin", "Officer")]
     public class TicketController : ControllerBase
     {
         private readonly TicketService _ticketService;
@@ -72,7 +74,6 @@ namespace Safi_Ticket.Controllers
                         ticket.Requester,
                         ticket.RequesterEmail,
                         ticket.StatusId,
-                        ticket.PriorityId,
                         ticket.UserId,
                         ticket.CreatedAt,
                         Attachments = attachments.Select(ToAttachmentResponse),
@@ -224,25 +225,45 @@ namespace Safi_Ticket.Controllers
             }
         }
 
-        [HttpPost("test-incoming-email")]
-        public async Task<IActionResult> TestIncomingEmail(TestIncomingEmailRequest request)
+        [HttpPost("{ticketId:int}/close")]
+        public async Task<IActionResult> CloseTicket(int ticketId, CloseTicketRequest request)
         {
-            var ticket = await _ticketService.CreateTicketFromIncomingEmailAsync(request);
+            try
+            {
+                var ticket = await _ticketService.CloseTicketAsync(ticketId, request);
 
-            return Ok(ticket);
+                if (ticket == null)
+                {
+                    return NotFound($"Ticket with id {ticketId} was not found.");
+                }
+
+                return Ok(ticket);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return BadRequest(new { message = exception.Message });
+            }
         }
 
         [HttpDelete("{ticketId:int}")]
+        [AllowRoles("Admin")]
         public async Task<IActionResult> DeleteTicket(int ticketId)
         {
-            var result = await _ticketService.DeleteTicket(ticketId);
-
-            if (result == null)
+            try
             {
-                return NotFound($"Ticket with id {ticketId} was not found.");
-            }
+                var result = await _ticketService.CancelTicketAsync(ticketId);
 
-            return Ok(result);
+                if (result == null)
+                {
+                    return NotFound($"Ticket with id {ticketId} was not found.");
+                }
+
+                return Ok(result);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return BadRequest(new { message = exception.Message });
+            }
         }
 
         private static object ToAttachmentResponse(TicketAttachment attachment)
@@ -255,6 +276,7 @@ namespace Safi_Ticket.Controllers
                 attachment.ContentType,
                 attachment.SizeBytes,
                 attachment.Url,
+                DownloadUrl = $"/api/ticket/attachments/{attachment.Id}/file",
                 attachment.UploadedAt,
             };
         }

@@ -2,7 +2,9 @@ namespace Safi_Ticket.DTO.Response
 {
     public class TicketOverviewResponse
     {
-        public string TimeFrame { get; set; } = "all";
+        public DateTime? StartDate { get; set; }
+
+        public DateTime? EndDate { get; set; }
 
         public int TotalCount { get; set; }
 

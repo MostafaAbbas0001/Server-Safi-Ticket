@@ -11,7 +11,6 @@ namespace Safi_Ticket.Services
         private readonly ApplicationDbContext _context;
         private readonly EmailNotificationService _emailNotificationService;
         private readonly BackgroundEmailQueue _backgroundEmailQueue;
-        private readonly TicketEventNotifier _ticketEventNotifier;
         private readonly IWebHostEnvironment _environment;
         private readonly ILogger<TicketService> _logger;
 
@@ -19,7 +18,6 @@ namespace Safi_Ticket.Services
             ApplicationDbContext context,
             EmailNotificationService emailNotificationService,
             BackgroundEmailQueue backgroundEmailQueue,
-            TicketEventNotifier ticketEventNotifier,
             IWebHostEnvironment environment,
             ILogger<TicketService> logger
         )
@@ -27,7 +25,6 @@ namespace Safi_Ticket.Services
             _context = context;
             _emailNotificationService = emailNotificationService;
             _backgroundEmailQueue = backgroundEmailQueue;
-            _ticketEventNotifier = ticketEventNotifier;
             _environment = environment;
             _logger = logger;
         }
@@ -76,8 +73,7 @@ namespace Safi_Ticket.Services
                 Body = body,
                 Requester = requester,
                 RequesterEmail = requester.Contains("@") ? requester : string.Empty,
-                PriorityId = null,
-                StatusId = 1,
+                StatusId = await GetStatusIdByNameAsync("Initiated"),
                 UserId = null,
                 CreatedAt = DateTime.UtcNow,
                 IsDeleted = false,
@@ -87,6 +83,22 @@ namespace Safi_Ticket.Services
             await _context.SaveChangesAsync();
 
             return ticket;
+        }
+
+        private async Task<int> GetStatusIdByNameAsync(string statusName)
+        {
+            var statusId = await _context
+                .Statuses.AsNoTracking()
+                .Where(status => status.Name == statusName)
+                .Select(status => (int?)status.Id)
+                .FirstOrDefaultAsync();
+
+            if (!statusId.HasValue)
+            {
+                throw new InvalidOperationException($"The {statusName} status does not exist.");
+            }
+
+            return statusId.Value;
         }
 
         public async Task<List<TicketAttachment>> GetAttachmentsByTicketIdAsync(int ticketId)
@@ -233,8 +245,6 @@ namespace Safi_Ticket.Services
                     RequesterEmail = ticket.RequesterEmail,
                     StatusId = ticket.StatusId,
                     Status = ticket.Status != null ? ticket.Status.Name : null,
-                    PriorityId = ticket.PriorityId,
-                    Priority = ticket.Priority != null ? ticket.Priority.Type : null,
                     UserId = ticket.UserId,
                     Assignee = ticket.User != null ? ticket.User.Name : null,
                     CreatedAt = ticket.CreatedAt,
@@ -261,13 +271,6 @@ namespace Safi_Ticket.Services
             {
                 filteredQuery = filteredQuery.Where(ticket =>
                     ticket.StatusId == request.StatusId.Value
-                );
-            }
-
-            if (request.PriorityId.HasValue)
-            {
-                filteredQuery = filteredQuery.Where(ticket =>
-                    ticket.PriorityId == request.PriorityId.Value
                 );
             }
 
@@ -312,8 +315,6 @@ namespace Safi_Ticket.Services
                     RequesterEmail = ticket.RequesterEmail,
                     StatusId = ticket.StatusId,
                     Status = ticket.Status != null ? ticket.Status.Name : null,
-                    PriorityId = ticket.PriorityId,
-                    Priority = ticket.Priority != null ? ticket.Priority.Type : null,
                     UserId = ticket.UserId,
                     Assignee = ticket.User != null ? ticket.User.Name : null,
                     CreatedAt = ticket.CreatedAt,
@@ -334,24 +335,25 @@ namespace Safi_Ticket.Services
             };
         }
 
-        public async Task<string?> UpdateTicketAsync(int id, UpdateTicketRequest request)
+        public async Task<TicketListItemResponse?> UpdateTicketAsync(int id, UpdateTicketRequest request)
         {
-            var ticket = await _context.Tickets.FirstOrDefaultAsync(ticket =>
-                ticket.Id == id && !ticket.IsDeleted
-            );
+            var ticket = await _context.Tickets
+                .FirstOrDefaultAsync(ticket => ticket.Id == id && !ticket.IsDeleted);
 
             if (ticket == null)
             {
                 return null;
             }
 
-            var previousUserId = ticket.UserId;
-            var previousStatusId = ticket.StatusId;
-            var isStaffUpdate = request.ActorUserId.HasValue;
+            var currentStatus = await _context.Statuses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(status => status.Id == ticket.StatusId);
 
-            if (isStaffUpdate && ticket.UserId != request.ActorUserId)
+            if (currentStatus?.Name is "Closed" or "Cancelled")
             {
-                throw new UnauthorizedAccessException();
+                throw new InvalidOperationException(
+                    "Closed or cancelled tickets cannot be updated."
+                );
             }
 
             if (!string.IsNullOrWhiteSpace(request.Title))
@@ -364,63 +366,88 @@ namespace Safi_Ticket.Services
                 ticket.Body = request.Body.Trim();
             }
 
-            if (request.StatusId.HasValue)
-            {
-                var requestedStatus = await _context
-                    .Statuses.AsNoTracking()
-                    .FirstOrDefaultAsync(status => status.Id == request.StatusId.Value);
+            User? assignee = null;
 
-                if (requestedStatus == null)
+            if (request.UserId.HasValue)
+            {
+                assignee = await _context.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(user => user.Id == request.UserId.Value);
+
+                if (assignee == null)
                 {
-                    throw new InvalidOperationException("The selected status does not exist.");
+                    throw new InvalidOperationException("The selected assignee does not exist.");
                 }
 
-                if (isStaffUpdate)
+                ticket.UserId = request.UserId.Value;
+                ticket.StatusId = await GetStatusIdByNameAsync("In Progress");
+            }
+
+            await _context.SaveChangesAsync();
+
+            if (assignee != null)
+            {
+                try
                 {
-                    var allowedStaffStatuses = new[]
-                    {
-                        "Initiated",
-                        "In Progress",
-                        "Closed",
-                        "Cancelled",
-                    };
-                    if (!allowedStaffStatuses.Contains(requestedStatus.Name))
-                    {
-                        throw new InvalidOperationException(
-                            "Staff can only set status to Initiated, In Progress, Closed, or Cancelled."
-                        );
-                    }
+                    await _emailNotificationService.SendTicketAssignedAsync(ticket, assignee);
                 }
-
-                ticket.StatusId = request.StatusId.Value;
+                catch (Exception exception)
+                {
+                    _logger.LogError(
+                        exception,
+                        "Failed to send assignment notification for ticket {TicketId}.",
+                        ticket.Id
+                    );
+                }
             }
 
-            if (request.PriorityId.HasValue)
+            return await GetTicketByIdAsync(ticket.Id);
+        }
+
+        public async Task<TicketListItemResponse?> CloseTicketAsync(
+            int ticketId,
+            CloseTicketRequest request
+        )
+        {
+            var ticket = await _context.Tickets.FirstOrDefaultAsync(ticket =>
+                ticket.Id == ticketId && !ticket.IsDeleted
+            );
+
+            if (ticket == null)
             {
-                ticket.PriorityId = request.PriorityId.Value;
+                return null;
             }
 
-            if (!isStaffUpdate && request.IsUserIdSet)
+            var body = request.Body.Trim();
+
+            var currentStatus = await _context
+                .Statuses.AsNoTracking()
+                .FirstOrDefaultAsync(status => status.Id == ticket.StatusId);
+
+            if (currentStatus?.Name == "Cancelled")
             {
-                ticket.UserId = request.UserId;
+                throw new InvalidOperationException("Cancelled tickets cannot be closed.");
             }
 
-            if (isStaffUpdate && !string.IsNullOrWhiteSpace(request.InternalNote))
+            if (currentStatus?.Name == "Closed")
             {
-                var user = await _context
-                    .Users.AsNoTracking()
-                    .FirstOrDefaultAsync(existingUser => existingUser.Id == request.ActorUserId);
+                throw new InvalidOperationException("Ticket is already closed.");
+            }
 
+            ticket.StatusId = await GetStatusIdByNameAsync("Closed");
+
+            if (!string.IsNullOrWhiteSpace(body))
+            {
                 _context.TicketComments.Add(
                     new TicketComment
                     {
                         TicketId = ticket.Id,
-                        Body = request.InternalNote.Trim(),
-                        AuthorName = user?.Name ?? "User",
-                        AuthorEmail = user?.Email,
-                        AuthorType = "User",
-                        IsInternalNote = true,
-                        UserId = request.ActorUserId,
+                        Body = body,
+                        AuthorName = request.AuthorName,
+                        AuthorEmail = request.AuthorEmail,
+                        AuthorType = "Agent",
+                        IsInternalNote = false,
+                        UserId = request.UserId,
                         CreatedAt = DateTime.UtcNow,
                     }
                 );
@@ -428,69 +455,20 @@ namespace Safi_Ticket.Services
 
             await _context.SaveChangesAsync();
 
-            if (request.StatusId.HasValue && ticket.StatusId != previousStatusId)
+            try
             {
-                var newStatus = await _context
-                    .Statuses.AsNoTracking()
-                    .FirstOrDefaultAsync(status => status.Id == ticket.StatusId);
-
-                if (newStatus?.Name == "Closed")
-                {
-                    try
-                    {
-                        await _emailNotificationService.SendTicketClosedAsync(ticket);
-                    }
-                    catch (Exception exception)
-                    {
-                        _logger.LogError(
-                            exception,
-                            "Failed to send closed notification for ticket {TicketId}.",
-                            ticket.Id
-                        );
-                    }
-                }
-
-                _ticketEventNotifier.Publish(
-                    new TicketEvent(
-                        "ticket-status-changed",
-                        ticket.Id,
-                        null,
-                        $"TK-{ticket.Id} status was updated.",
-                        DateTime.UtcNow
-                    )
+                await _emailNotificationService.SendTicketClosedAsync(ticket, body);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Failed to send closed notification for ticket {TicketId}.",
+                    ticket.Id
                 );
             }
 
-            if (
-                !isStaffUpdate
-                && request.IsUserIdSet
-                && request.UserId.HasValue
-                && previousUserId != request.UserId
-            )
-            {
-                var assignee = await _context
-                    .Users.AsNoTracking()
-                    .FirstOrDefaultAsync(user => user.Id == request.UserId.Value);
-
-                if (assignee != null)
-                {
-                    try
-                    {
-                        await _emailNotificationService.SendTicketAssignedAsync(ticket, assignee);
-                    }
-                    catch (Exception exception)
-                    {
-                        _logger.LogError(
-                            exception,
-                            "Failed to send assignment notification for ticket {TicketId} to user {UserId}.",
-                            ticket.Id,
-                            assignee.Id
-                        );
-                    }
-                }
-            }
-
-            return "Ticket has been updated successfully.";
+            return await GetTicketByIdAsync(ticket.Id);
         }
 
         public async Task<TicketComment?> AddCommentAsync(
@@ -527,16 +505,6 @@ namespace Safi_Ticket.Services
             _context.TicketComments.Add(comment);
             await _context.SaveChangesAsync();
 
-            _ticketEventNotifier.Publish(
-                new TicketEvent(
-                    "ticket-comment-added",
-                    ticketId,
-                    comment.Id,
-                    $"New comment on TK-{ticketId}",
-                    comment.CreatedAt
-                )
-            );
-
             return comment;
         }
 
@@ -567,7 +535,7 @@ namespace Safi_Ticket.Services
             {
                 throw new InvalidOperationException("Reply body is required.");
             }
-            
+
             if (request.UserId.HasValue && ticket.UserId != request.UserId)
             {
                 throw new UnauthorizedAccessException();
@@ -595,16 +563,6 @@ namespace Safi_Ticket.Services
 
             _context.TicketComments.Add(reply);
             await _context.SaveChangesAsync();
-
-            _ticketEventNotifier.Publish(
-                new TicketEvent(
-                    "ticket-comment-added",
-                    ticketId,
-                    reply.Id,
-                    $"New reply on TK-{ticketId}",
-                    reply.CreatedAt
-                )
-            );
 
             _backgroundEmailQueue.Enqueue(async (services, cancellationToken) =>
             {
@@ -653,83 +611,7 @@ namespace Safi_Ticket.Services
             return reply;
         }
 
-        public async Task<Ticket> CreateTicketFromIncomingEmailAsync(
-            TestIncomingEmailRequest request
-        )
-        {
-            var subject = request.Subject.Trim();
-            var body = request.Body.Trim();
-
-            if (string.IsNullOrWhiteSpace(subject))
-            {
-                subject = "(No subject)";
-            }
-
-            var requester = !string.IsNullOrWhiteSpace(request.FromName)
-                ? request.FromName.Trim()
-                : request.FromEmail.Trim();
-
-            var ticket = new Ticket
-            {
-                Title = subject,
-                Body = body,
-                Requester = requester,
-                RequesterEmail = request.FromEmail.Trim(),
-                StatusId = 1,
-                PriorityId = null,
-                UserId = null,
-                CreatedAt = DateTime.UtcNow,
-                IsDeleted = false,
-            };
-
-            var comment = new TicketComment
-            {
-                Ticket = ticket,
-                Body = body,
-                AuthorName = request.FromName,
-                AuthorEmail = request.FromEmail,
-                AuthorType = "Requester",
-                IsInternalNote = false,
-                UserId = null,
-                CreatedAt = DateTime.UtcNow,
-            };
-
-            var emailMessage = new EmailMessage
-            {
-                Ticket = ticket,
-                TicketComment = comment,
-                MessageId = request.MessageId,
-                FromEmail = request.FromEmail,
-                FromName = request.FromName,
-                Subject = subject,
-                Body = body,
-                ReceivedAt = request.ReceivedAt,
-                ProcessedAt = DateTime.UtcNow,
-            };
-
-            _context.Tickets.Add(ticket);
-            _context.TicketComments.Add(comment);
-            _context.EmailMessages.Add(emailMessage);
-
-            await _context.SaveChangesAsync();
-
-            try
-            {
-                await _emailNotificationService.SendTicketReceivedAsync(ticket);
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(
-                    exception,
-                    "Failed to send ticket received notification for test email ticket {TicketId}.",
-                    ticket.Id
-                );
-            }
-
-            return ticket;
-        }
-
-        public async Task<string?> DeleteTicket(int ticketId)
+        public async Task<TicketListItemResponse?> CancelTicketAsync(int ticketId)
         {
             var ticket = await _context.Tickets.FirstOrDefaultAsync(ticket =>
                 ticket.Id == ticketId && !ticket.IsDeleted
@@ -740,10 +622,19 @@ namespace Safi_Ticket.Services
                 return null;
             }
 
-            ticket.IsDeleted = true;
+            var currentStatus = await _context
+                .Statuses.AsNoTracking()
+                .FirstOrDefaultAsync(status => status.Id == ticket.StatusId);
+
+            if (currentStatus?.Name == "Closed")
+            {
+                throw new InvalidOperationException("Closed tickets cannot be cancelled.");
+            }
+
+            ticket.StatusId = await GetStatusIdByNameAsync("Cancelled");
             await _context.SaveChangesAsync();
 
-            return "Ticket has been deleted successfully.";
+            return await GetTicketByIdAsync(ticket.Id);
         }
     }
 }

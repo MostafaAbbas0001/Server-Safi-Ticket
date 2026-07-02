@@ -1,7 +1,9 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MimeKit;
 using Safi_Ticket.Data;
+using Safi_Ticket.DTO.Settings;
 using Safi_Ticket.Models;
 
 namespace Safi_Ticket.Services
@@ -10,23 +12,23 @@ namespace Safi_Ticket.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly EmailNotificationService _emailNotificationService;
-        private readonly TicketEventNotifier _ticketEventNotifier;
         private readonly IWebHostEnvironment _environment;
         private readonly ILogger<EmailIngestionService> _logger;
+        private readonly EmailSettings _settings;
 
         public EmailIngestionService(
             ApplicationDbContext context,
             EmailNotificationService emailNotificationService,
-            TicketEventNotifier ticketEventNotifier,
             IWebHostEnvironment environment,
-            ILogger<EmailIngestionService> logger
+            ILogger<EmailIngestionService> logger,
+            IOptions<EmailSettings> settings
         )
         {
             _context = context;
             _emailNotificationService = emailNotificationService;
-            _ticketEventNotifier = ticketEventNotifier;
             _environment = environment;
             _logger = logger;
+            _settings = settings.Value;
         }
 
         public async Task<Ticket?> IngestEmailAsync(MimeMessage message, string fallbackMessageId)
@@ -49,6 +51,17 @@ namespace Safi_Ticket.Services
             var fromEmail = fromMailbox?.Address ?? string.Empty;
             var fromName = string.IsNullOrWhiteSpace(fromMailbox?.Name) ? null : fromMailbox.Name;
             var subject = (message.Subject ?? string.Empty).Trim();
+
+            if (IsFromHelpdeskMailbox(fromEmail))
+            {
+                _logger.LogInformation(
+                    "Skipped self-sent helpdesk email {MessageId} with subject {Subject}.",
+                    messageId,
+                    subject
+                );
+                return null;
+            }
+
             var body = CleanEmailBody(message.TextBody ?? message.HtmlBody ?? string.Empty);
             var receivedAt =
                 message.Date == DateTimeOffset.MinValue
@@ -68,7 +81,7 @@ namespace Safi_Ticket.Services
                     AuthorEmail = fromEmail,
                     AuthorType = "Requester",
                     IsInternalNote = false,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = receivedAt,
                 };
 
                 var replyEmailMessage = new EmailMessage
@@ -89,16 +102,6 @@ namespace Safi_Ticket.Services
                 await _context.SaveChangesAsync();
                 await SaveEmailAttachmentsAsync(existingTicket.Id, message);
 
-                _ticketEventNotifier.Publish(
-                    new TicketEvent(
-                        "ticket-comment-added",
-                        existingTicket.Id,
-                        replyComment.Id,
-                        $"New email reply on TK-{existingTicket.Id}",
-                        replyComment.CreatedAt
-                    )
-                );
-
                 _logger.LogInformation(
                     "Incoming email {MessageId} added to ticket {TicketId} conversation.",
                     messageId,
@@ -114,9 +117,8 @@ namespace Safi_Ticket.Services
                 Body = body,
                 Requester = fromName ?? fromEmail,
                 RequesterEmail = fromEmail,
-                StatusId = 1,
-                PriorityId = null,
-                CreatedAt = DateTime.UtcNow,
+                StatusId = await GetStatusIdByNameAsync("Initiated"),
+                CreatedAt = receivedAt,
             };
 
             var comment = new TicketComment
@@ -127,7 +129,7 @@ namespace Safi_Ticket.Services
                 AuthorEmail = fromEmail,
                 AuthorType = "Requester",
                 IsInternalNote = false,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = receivedAt,
             };
 
             var emailMessage = new EmailMessage
@@ -149,16 +151,6 @@ namespace Safi_Ticket.Services
 
             await _context.SaveChangesAsync();
             await SaveEmailAttachmentsAsync(ticket.Id, message);
-
-            _ticketEventNotifier.Publish(
-                new TicketEvent(
-                    "ticket-created",
-                    ticket.Id,
-                    comment.Id,
-                    $"New ticket TK-{ticket.Id} received by email",
-                    ticket.CreatedAt
-                )
-            );
 
             try
             {
@@ -306,6 +298,28 @@ namespace Safi_Ticket.Services
             return await _context.Tickets.FirstOrDefaultAsync(ticket =>
                 ticket.Id == relatedTicketId.Value && !ticket.IsDeleted
             );
+        }
+
+        private bool IsFromHelpdeskMailbox(string email)
+        {
+            return !string.IsNullOrWhiteSpace(_settings.Username)
+                && string.Equals(email, _settings.Username, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<int> GetStatusIdByNameAsync(string statusName)
+        {
+            var statusId = await _context
+                .Statuses.AsNoTracking()
+                .Where(status => status.Name == statusName)
+                .Select(status => (int?)status.Id)
+                .FirstOrDefaultAsync();
+
+            if (!statusId.HasValue)
+            {
+                throw new InvalidOperationException($"The {statusName} status does not exist.");
+            }
+
+            return statusId.Value;
         }
 
         private async Task ReopenTicketIfRequesterRepliedAsync(Ticket ticket, string fromEmail)

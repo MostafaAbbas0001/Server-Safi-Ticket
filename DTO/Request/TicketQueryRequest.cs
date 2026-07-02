@@ -6,8 +6,6 @@ namespace Safi_Ticket.DTO.Request
 
         public int? StatusId { get; set; }
 
-        public int? PriorityId { get; set; }
-
         public int? UserId { get; set; }
 
         public string? Search { get; set; }

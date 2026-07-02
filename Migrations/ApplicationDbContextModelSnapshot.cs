@@ -106,23 +106,6 @@ namespace Safi_Ticket.Migrations
                     b.ToTable("PasswordResetTokens");
                 });
 
-            modelBuilder.Entity("Safi_Ticket.Models.Priority", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Priorities");
-                });
-
             modelBuilder.Entity("Safi_Ticket.Models.Role", b =>
                 {
                     b.Property<int>("Id")
@@ -175,9 +158,6 @@ namespace Safi_Ticket.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<int?>("PriorityId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Requester")
                         .IsRequired()
                         .HasColumnType("text");
@@ -197,8 +177,6 @@ namespace Safi_Ticket.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PriorityId");
-
                     b.HasIndex("RequesterEmail");
 
                     b.HasIndex("StatusId");
@@ -206,8 +184,6 @@ namespace Safi_Ticket.Migrations
                     b.HasIndex("UserId");
 
                     b.HasIndex("IsDeleted", "CreatedAt");
-
-                    b.HasIndex("IsDeleted", "PriorityId");
 
                     b.HasIndex("IsDeleted", "StatusId");
 
@@ -368,10 +344,6 @@ namespace Safi_Ticket.Migrations
 
             modelBuilder.Entity("Safi_Ticket.Models.Ticket", b =>
                 {
-                    b.HasOne("Safi_Ticket.Models.Priority", "Priority")
-                        .WithMany("Tickets")
-                        .HasForeignKey("PriorityId");
-
                     b.HasOne("Safi_Ticket.Models.Status", "Status")
                         .WithMany("Tickets")
                         .HasForeignKey("StatusId")
@@ -381,8 +353,6 @@ namespace Safi_Ticket.Migrations
                     b.HasOne("Safi_Ticket.Models.User", "User")
                         .WithMany("Tickets")
                         .HasForeignKey("UserId");
-
-                    b.Navigation("Priority");
 
                     b.Navigation("Status");
 
@@ -427,11 +397,6 @@ namespace Safi_Ticket.Migrations
                         .IsRequired();
 
                     b.Navigation("Role");
-                });
-
-            modelBuilder.Entity("Safi_Ticket.Models.Priority", b =>
-                {
-                    b.Navigation("Tickets");
                 });
 
             modelBuilder.Entity("Safi_Ticket.Models.Role", b =>

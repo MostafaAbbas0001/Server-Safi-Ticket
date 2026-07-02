@@ -102,17 +102,21 @@ namespace Safi_Ticket.Services
             await SendAsync(ticket.RequesterEmail, ticket.Requester, subject, plainBody, htmlBody);
         }
 
-        public async Task SendTicketClosedAsync(Ticket ticket)
+        public async Task SendTicketClosedAsync(Ticket ticket, string? closingMessage = null)
         {
             if (string.IsNullOrWhiteSpace(ticket.RequesterEmail))
             {
                 return;
             }
 
+            var trimmedClosingMessage = closingMessage?.Trim();
+            var hasCustomClosingMessage = !string.IsNullOrWhiteSpace(trimmedClosingMessage);
+            var defaultClosedMessage = "Your helpdesk ticket has been reviewed and closed.";
+            var intro = hasCustomClosingMessage ? trimmedClosingMessage! : defaultClosedMessage;
             var subject = $"Closed: [TK-{ticket.Id}] {ticket.Title}";
             var plainBody =
                 $"Hello {ticket.Requester},\n\n" +
-                "Your helpdesk ticket has been reviewed and closed.\n\n" +
+                $"{intro}\n\n" +
                 $"Ticket ID: TK-{ticket.Id}\n" +
                 $"Title: {ticket.Title}\n\n" +
                 "If the issue happens again, please reply to this email or open a new ticket.\n\n" +
@@ -122,8 +126,12 @@ namespace Safi_Ticket.Services
                 $"TK-{ticket.Id}",
                 ticket.Title,
                 ticket.Requester,
-                "Your helpdesk ticket has been reviewed and closed.",
-                "If the issue happens again, please reply to this email or open a new ticket."
+                hasCustomClosingMessage
+                    ? "Your helpdesk ticket has been closed with the following message."
+                    : defaultClosedMessage,
+                "If the issue happens again, please reply to this email or open a new ticket.",
+                hasCustomClosingMessage ? "Closing message" : null,
+                hasCustomClosingMessage ? trimmedClosingMessage : null
             );
 
             await SendAsync(ticket.RequesterEmail, ticket.Requester, subject, plainBody, htmlBody);
@@ -168,6 +176,15 @@ namespace Safi_Ticket.Services
             string body,
             string? htmlBody = null)
         {
+            if (IsHelpdeskMailbox(toEmail))
+            {
+                _logger.LogInformation(
+                    "Skipped outbound email with subject {Subject} because recipient is the helpdesk mailbox.",
+                    subject
+                );
+                return;
+            }
+
             var smtpHost = string.IsNullOrWhiteSpace(_settings.SmtpHost)
                 ? _settings.Host
                 : _settings.SmtpHost;
@@ -239,6 +256,12 @@ namespace Safi_Ticket.Services
             await client.AuthenticateAsync(_settings.Username, _settings.Password);
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
+        }
+
+        private bool IsHelpdeskMailbox(string email)
+        {
+            return !string.IsNullOrWhiteSpace(_settings.Username)
+                && string.Equals(email, _settings.Username, StringComparison.OrdinalIgnoreCase);
         }
 
         private EmailLogoAsset? ResolveEmailLogo()

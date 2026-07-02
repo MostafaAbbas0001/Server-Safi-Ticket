@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Safi_Ticket.Authorization;
 using Safi_Ticket.Data;
 
 namespace Safi_Ticket.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [AllowRoles("Admin")]
     public class RoleController : ControllerBase
     {
         private readonly ApplicationDbContext _context;

@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
+using Safi_Ticket.Authorization;
 using Safi_Ticket.Services;
 
 namespace Safi_Ticket.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [AllowRoles("Admin", "Officer")]
     public class OverviewController : ControllerBase
     {
         private readonly OverviewService _overviewService;
@@ -16,11 +18,12 @@ namespace Safi_Ticket.Controllers
 
         [HttpGet("tickets")]
         public async Task<IActionResult> GetTicketOverview(
-            [FromQuery] string? timeFrame,
+            [FromQuery] DateTime? startDate,
+            [FromQuery] DateTime? endDate,
             [FromQuery] int? userId
         )
         {
-            var overview = await _overviewService.GetTicketOverviewAsync(timeFrame, userId);
+            var overview = await _overviewService.GetTicketOverviewAsync(startDate, endDate, userId);
 
             return Ok(overview);
         }

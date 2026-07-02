@@ -1,4 +1,7 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Safi_Ticket.Data;
 using Safi_Ticket.DTO.Settings;
 using Safi_Ticket.Services;
@@ -34,9 +37,39 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
+var jwtKey = builder.Configuration["Jwt:Key"];
+var jwtIssuer = builder.Configuration["Jwt:Issuer"];
+var jwtAudience = builder.Configuration["Jwt:Audience"];
+
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    throw new InvalidOperationException("JWT key is not configured.");
+}
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtIssuer,
+            ValidateAudience = true,
+            ValidAudience = jwtAudience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1),
+            NameClaimType = "nameid",
+            RoleClaimType = "role",
+        };
+    });
+builder.Services.AddAuthorization();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<OverviewService>();
+builder.Services.AddScoped<StatusService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -44,7 +77,6 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<EmailNotificationService>();
 builder.Services.AddScoped<EmailIngestionService>();
-builder.Services.AddSingleton<TicketEventNotifier>();
 builder.Services.AddSingleton<BackgroundEmailQueue>();
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<BackgroundEmailQueue>());
 builder.Services.AddHostedService<EmailReaderWorker>();
@@ -63,6 +95,8 @@ if (app.Environment.IsDevelopment())
 app.UseStaticFiles();
 
 app.UseCors("FrontendPolicy");
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
@@ -147,7 +181,6 @@ static void ApplyEnvironmentConfigurationAliases()
     SetFromEnvironmentIfMissing("EmailSettings__Username", "EMAIL_USERNAME");
     SetFromEnvironmentIfMissing("EmailSettings__Password", "EMAIL_PASSWORD");
     SetFromEnvironmentIfMissing("EmailSettings__Mailbox", "EMAIL_MAILBOX");
-    SetFromEnvironmentIfMissing("EmailSettings__PollSeconds", "EMAIL_POLL_SECONDS");
     SetFromEnvironmentIfMissing("EmailSettings__SmtpHost", "EMAIL_SMTP_HOST");
     SetFromEnvironmentIfMissing("EmailSettings__SmtpPort", "EMAIL_SMTP_PORT");
     SetFromEnvironmentIfMissing("EmailSettings__FromName", "EMAIL_FROM_NAME");

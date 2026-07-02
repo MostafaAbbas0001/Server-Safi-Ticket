@@ -1,27 +1,25 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Safi_Ticket.Data;
+using Safi_Ticket.Authorization;
+using Safi_Ticket.Services;
 
 namespace Safi_Ticket.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [AllowRoles("Admin", "Officer")]
     public class StatusController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly StatusService _statusService;
 
-        public StatusController(ApplicationDbContext context)
+        public StatusController(StatusService statusService)
         {
-            _context = context;
+            _statusService = statusService;
         }
 
         [HttpGet]
         public async Task<IActionResult> GetStatuses()
         {
-            var statuses = await _context
-                .Statuses.OrderBy(status => status.Id)
-                .Select(status => new { status.Id, status.Name })
-                .ToListAsync();
+            var statuses = await _statusService.GetStatusesAsync();
 
             return Ok(statuses);
         }

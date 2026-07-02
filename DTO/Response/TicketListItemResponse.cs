@@ -16,10 +16,6 @@ namespace Safi_Ticket.DTO.Response
 
         public string? Status { get; set; }
 
-        public int? PriorityId { get; set; }
-
-        public string? Priority { get; set; }
-
         public int? UserId { get; set; }
 
         public string? Assignee { get; set; }

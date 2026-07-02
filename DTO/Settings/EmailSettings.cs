@@ -12,8 +12,6 @@ namespace Safi_Ticket.DTO.Settings
 
         public string Mailbox { get; set; } = "INBOX";
 
-        public int PollSeconds { get; set; } = 300;
-
         public string SmtpHost { get; set; } = string.Empty;
 
         public int SmtpPort { get; set; } = 465;
