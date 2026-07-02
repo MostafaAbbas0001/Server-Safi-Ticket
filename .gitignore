@@ -1,0 +1,50 @@
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Visual Studio / IDE files
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# .NET build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+TestResults/
+build-verify/
+publish/
+artifacts/
+
+# Packages and symbols
+*.nupkg
+*.snupkg
+*.pdb
+*.mdb
+
+# Logs
+*.log
+logs/
+
+# Local configuration and secrets
+.env
+.env.*
+*.local
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
+secrets.json
+
+# Runtime uploaded files
+wwwroot/uploads/*
+!wwwroot/uploads/.gitkeep
+
+# Entity Framework local artifacts
+efbundle
+efbundle.exe
