@@ -10,6 +10,7 @@ namespace Safi_Ticket.Services
     public class EmailReaderWorker : BackgroundService
     {
         private const int ReconnectDelaySeconds = 30;
+        private static readonly TimeSpan ConnectionRefreshInterval = TimeSpan.FromMinutes(30);
         private static readonly TimeSpan IdleRefreshInterval = TimeSpan.FromMinutes(9);
 
         private readonly IServiceScopeFactory _scopeFactory;
@@ -43,7 +44,11 @@ namespace Safi_Ticket.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error while reading emails.");
+                    _logger.LogError(
+                        ex,
+                        "EmailReaderWorker disconnected because of an error. It will retry in {DelaySeconds} seconds.",
+                        ReconnectDelaySeconds
+                    );
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(ReconnectDelaySeconds), stoppingToken);
@@ -55,6 +60,7 @@ namespace Safi_Ticket.Services
             ValidateSettings();
 
             using var client = new ImapClient();
+            var connectedAt = DateTimeOffset.UtcNow;
 
             _logger.LogInformation(
                 "Connecting to IMAP server {Host}:{Port} as {Username}.",
@@ -117,6 +123,15 @@ namespace Safi_Ticket.Services
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    if (DateTimeOffset.UtcNow - connectedAt >= ConnectionRefreshInterval)
+                    {
+                        _logger.LogInformation(
+                            "Refreshing IMAP connection after {Minutes} minutes.",
+                            ConnectionRefreshInterval.TotalMinutes
+                        );
+                        return;
+                    }
+
                     using var idleDone = CancellationTokenSource.CreateLinkedTokenSource(
                         cancellationToken
                     );
@@ -144,7 +159,18 @@ namespace Safi_Ticket.Services
             finally
             {
                 folder.CountChanged -= OnCountChanged;
-                await client.DisconnectAsync(true, cancellationToken);
+
+                if (client.IsConnected)
+                {
+                    try
+                    {
+                        await client.DisconnectAsync(true, cancellationToken);
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.LogError(exception, "Failed to disconnect cleanly from IMAP server.");
+                    }
+                }
             }
         }
 
@@ -161,20 +187,36 @@ namespace Safi_Ticket.Services
 
             foreach (var uid in unreadEmails)
             {
-                _logger.LogInformation("Processing email UID: {Uid}", uid.Id);
+                try
+                {
+                    _logger.LogInformation("Processing email UID: {Uid}", uid.Id);
 
-                var message = await folder.GetMessageAsync(uid, cancellationToken);
+                    var message = await folder.GetMessageAsync(uid, cancellationToken);
 
-                using var scope = _scopeFactory.CreateScope();
-                var emailIngestionService =
-                    scope.ServiceProvider.GetRequiredService<EmailIngestionService>();
+                    using var scope = _scopeFactory.CreateScope();
+                    var emailIngestionService =
+                        scope.ServiceProvider.GetRequiredService<EmailIngestionService>();
 
-                await emailIngestionService.IngestEmailAsync(
-                    message,
-                    $"{folder.FullName}-{uid.Id}"
-                );
+                    await emailIngestionService.IngestEmailAsync(
+                        message,
+                        $"{folder.FullName}-{uid.Id}"
+                    );
 
-                await folder.AddFlagsAsync(uid, MessageFlags.Seen, true, cancellationToken);
+                    await folder.AddFlagsAsync(uid, MessageFlags.Seen, true, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(
+                        exception,
+                        "Failed to process unread email UID {Uid} in mailbox {Mailbox}. The message will remain unread and the worker will continue with other unread emails.",
+                        uid.Id,
+                        folder.FullName
+                    );
+                }
             }
         }
 
