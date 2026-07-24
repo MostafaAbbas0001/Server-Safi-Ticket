@@ -290,16 +290,21 @@ namespace Safi_Ticket.Services
                 ? DateTime.SpecifyKind(request.EndDate.Value.Date, DateTimeKind.Utc)
                 : (DateTime?)null;
             var exclusiveEndDate = normalizedEndDate?.AddDays(1);
+            var statusIds = request.StatusIds.Where(statusId => statusId > 0).Distinct().ToList();
+
+            if (request.StatusId.HasValue && request.StatusId.Value > 0)
+            {
+                statusIds.Add(request.StatusId.Value);
+                statusIds = statusIds.Distinct().ToList();
+            }
 
             var baseQuery = _context.Tickets.AsNoTracking().Where(ticket => !ticket.IsDeleted);
 
             var filteredQuery = baseQuery;
 
-            if (request.StatusId.HasValue)
+            if (statusIds.Count > 0)
             {
-                filteredQuery = filteredQuery.Where(ticket =>
-                    ticket.StatusId == request.StatusId.Value
-                );
+                filteredQuery = filteredQuery.Where(ticket => statusIds.Contains(ticket.StatusId));
             }
 
             if (request.UserId.HasValue)
