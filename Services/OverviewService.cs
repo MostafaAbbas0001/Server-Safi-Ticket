@@ -59,12 +59,37 @@ namespace Safi_Ticket.Services
                 })
                 .ToListAsync();
 
+            var dailyCounts = await ticketsQuery
+                .GroupBy(ticket => ticket.CreatedAt.Date)
+                .Select(group => new { Date = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(item => item.Date, item => item.Count);
+
+            var firstDate =
+                normalizedStartDate
+                ?? (dailyCounts.Count > 0 ? dailyCounts.Keys.Min() : DateTime.UtcNow.Date);
+            var lastDate =
+                normalizedEndDate
+                ?? (dailyCounts.Count > 0 ? dailyCounts.Keys.Max() : firstDate);
+            var dailyTickets = new List<TicketDailyOverviewResponse>();
+
+            for (var date = firstDate.Date; date <= lastDate.Date; date = date.AddDays(1))
+            {
+                dailyTickets.Add(
+                    new TicketDailyOverviewResponse
+                    {
+                        Date = DateTime.SpecifyKind(date, DateTimeKind.Utc),
+                        Count = dailyCounts.GetValueOrDefault(date),
+                    }
+                );
+            }
+
             return new TicketOverviewResponse
             {
                 StartDate = normalizedStartDate,
                 EndDate = normalizedEndDate,
                 TotalCount = statusCounts.Values.Sum(),
                 Statuses = statuses,
+                DailyTickets = dailyTickets,
             };
         }
     }

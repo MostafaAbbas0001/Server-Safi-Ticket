@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Net.Mail;
 using Safi_Ticket.Data;
 using Safi_Ticket.DTO.Request;
 using Safi_Ticket.DTO.Response;
@@ -51,6 +52,7 @@ namespace Safi_Ticket.Services
             var title = request.Title.Trim();
             var body = request.Body.Trim();
             var requester = request.Requester.Trim();
+            var requesterEmail = NormalizeRequesterEmail(request.RequesterEmail);
 
             if (string.IsNullOrWhiteSpace(title))
             {
@@ -72,7 +74,7 @@ namespace Safi_Ticket.Services
                 Title = title,
                 Body = body,
                 Requester = requester,
-                RequesterEmail = requester.Contains("@") ? requester : string.Empty,
+                RequesterEmail = requesterEmail,
                 StatusId = await GetStatusIdByNameAsync("Initiated"),
                 UserId = null,
                 CreatedAt = DateTime.UtcNow,
@@ -83,6 +85,25 @@ namespace Safi_Ticket.Services
             await _context.SaveChangesAsync();
 
             return ticket;
+        }
+
+        private static string NormalizeRequesterEmail(string? email)
+        {
+            var requesterEmail = email?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(requesterEmail))
+            {
+                throw new InvalidOperationException("Requester email is required.");
+            }
+
+            try
+            {
+                return new MailAddress(requesterEmail).Address;
+            }
+            catch (FormatException)
+            {
+                throw new InvalidOperationException("Requester email is invalid.");
+            }
         }
 
         private async Task<int> GetStatusIdByNameAsync(string statusName)
@@ -262,6 +283,13 @@ namespace Safi_Ticket.Services
             var page = Math.Max(1, request.Page);
             const int pageSize = 50;
             var search = request.Search?.Trim();
+            var normalizedStartDate = request.StartDate.HasValue
+                ? DateTime.SpecifyKind(request.StartDate.Value.Date, DateTimeKind.Utc)
+                : (DateTime?)null;
+            var normalizedEndDate = request.EndDate.HasValue
+                ? DateTime.SpecifyKind(request.EndDate.Value.Date, DateTimeKind.Utc)
+                : (DateTime?)null;
+            var exclusiveEndDate = normalizedEndDate?.AddDays(1);
 
             var baseQuery = _context.Tickets.AsNoTracking().Where(ticket => !ticket.IsDeleted);
 
@@ -277,6 +305,20 @@ namespace Safi_Ticket.Services
             if (request.UserId.HasValue)
             {
                 filteredQuery = filteredQuery.Where(ticket => ticket.UserId == request.UserId.Value);
+            }
+
+            if (normalizedStartDate.HasValue)
+            {
+                filteredQuery = filteredQuery.Where(ticket =>
+                    ticket.CreatedAt >= normalizedStartDate.Value
+                );
+            }
+
+            if (exclusiveEndDate.HasValue)
+            {
+                filteredQuery = filteredQuery.Where(ticket =>
+                    ticket.CreatedAt < exclusiveEndDate.Value
+                );
             }
 
             if (!string.IsNullOrWhiteSpace(search))

@@ -13,5 +13,9 @@ namespace Safi_Ticket.Models
         [Required]
         public string Requester { get; set; } = string.Empty;
 
+        [Required]
+        [EmailAddress]
+        public string RequesterEmail { get; set; } = string.Empty;
+
     }
 }

@@ -62,7 +62,7 @@ namespace Safi_Ticket.Services
                 return null;
             }
 
-            var body = CleanEmailBody(message.TextBody ?? message.HtmlBody ?? string.Empty);
+            var body = CleanEmailBody(message.TextBody, message.HtmlBody);
             var receivedAt =
                 message.Date == DateTimeOffset.MinValue
                     ? DateTime.UtcNow
@@ -366,7 +366,85 @@ namespace Safi_Ticket.Services
             return int.TryParse(match.Groups[1].Value, out var ticketId) ? ticketId : null;
         }
 
-        private static string CleanEmailBody(string body)
+        private static string CleanEmailBody(string? textBody, string? htmlBody)
+        {
+            if (ShouldPreserveHtmlBody(htmlBody))
+            {
+                return CleanHtmlEmailBody(htmlBody!);
+            }
+
+            return CleanPlainTextEmailBody(textBody ?? htmlBody ?? string.Empty);
+        }
+
+        private static bool ShouldPreserveHtmlBody(string? htmlBody)
+        {
+            return !string.IsNullOrWhiteSpace(htmlBody)
+                && Regex.IsMatch(htmlBody, @"<\s*table\b", RegexOptions.IgnoreCase);
+        }
+
+        private static string CleanHtmlEmailBody(string body)
+        {
+            var normalizedBody = body.Replace("\r\n", "\n").Replace("\r", "\n").Trim();
+
+            if (string.IsNullOrWhiteSpace(normalizedBody))
+            {
+                return string.Empty;
+            }
+
+            var styleBlocks = Regex
+                .Matches(
+                    normalizedBody,
+                    @"<\s*style\b[^>]*>[\s\S]*?<\s*/\s*style\s*>",
+                    RegexOptions.IgnoreCase
+                )
+                .Select(match => match.Value)
+                .ToList();
+
+            normalizedBody = Regex.Replace(
+                normalizedBody,
+                @"<\s*style\b[^>]*>[\s\S]*?<\s*/\s*style\s*>",
+                string.Empty,
+                RegexOptions.IgnoreCase
+            );
+            normalizedBody = Regex.Replace(
+                normalizedBody,
+                @"<!--[\s\S]*?-->",
+                string.Empty,
+                RegexOptions.IgnoreCase
+            );
+            normalizedBody = Regex.Replace(
+                normalizedBody,
+                @"<\s*(script|head)\b[\s\S]*?<\s*/\s*\1\s*>",
+                string.Empty,
+                RegexOptions.IgnoreCase
+            );
+            normalizedBody = Regex.Replace(
+                normalizedBody,
+                @"<\s*(meta|link)\b[^>]*>",
+                string.Empty,
+                RegexOptions.IgnoreCase
+            );
+
+            var bodyMatch = Regex.Match(
+                normalizedBody,
+                @"<\s*body\b[^>]*>([\s\S]*?)<\s*/\s*body\s*>",
+                RegexOptions.IgnoreCase
+            );
+
+            if (bodyMatch.Success)
+            {
+                normalizedBody = bodyMatch.Groups[1].Value.Trim();
+            }
+
+            if (styleBlocks.Count > 0)
+            {
+                normalizedBody = string.Concat(styleBlocks) + normalizedBody;
+            }
+
+            return string.IsNullOrWhiteSpace(normalizedBody) ? string.Empty : normalizedBody;
+        }
+
+        private static string CleanPlainTextEmailBody(string body)
         {
             var normalizedBody = body.Replace("\r\n", "\n").Replace("\r", "\n").Trim();
 
