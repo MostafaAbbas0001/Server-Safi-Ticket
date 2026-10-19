@@ -1,0 +1,18 @@
+namespace Safi_Ticket.Common.Configuration;
+
+public class EmailSettings
+{
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public string Mailbox { get; set; } = "INBOX";
+    public string SmtpHost { get; set; } = string.Empty;
+    public int SmtpPort { get; set; } = 465;
+    public string FromName { get; set; } = "Safi Helpdesk";
+
+    /// <summary>True when <paramref name="email"/> is the helpdesk mailbox itself.</summary>
+    public bool IsHelpdeskAddress(string? email) =>
+        !string.IsNullOrWhiteSpace(Username)
+        && string.Equals(email?.Trim(), Username, StringComparison.OrdinalIgnoreCase);
+}

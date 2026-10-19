@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+.vscode/
+.git/
+.env
+*.user
+*.suo
+appsettings.Development.json
+wwwroot/uploads/
